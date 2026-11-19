@@ -1,0 +1,37 @@
+# GPU override of Dockerfile. Same service, CUDA 12 / cuDNN 9, float16.
+# docker build -f Dockerfile.cuda -t fast-whisper-api:cuda .
+ARG BASE_IMAGE=nvidia/cuda:12.3.2-cudnn9-runtime-ubuntu22.04
+FROM ${BASE_IMAGE}
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends python3 python3-pip ffmpeg ca-certificates \
+    && ln -sf /usr/bin/python3 /usr/local/bin/python \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /srv
+
+COPY requirements.txt requirements-whisper.txt ./
+ENV PIP_CERT=/etc/ssl/certs/ca-certificates.crt \
+    SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt \
+    REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt
+RUN python -m pip install --no-cache-dir -r requirements.txt -r requirements-whisper.txt
+
+RUN useradd --create-home --uid 10001 whisper
+USER whisper
+ENV HOME=/home/whisper \
+    WHISPER_MODEL=small \
+    WHISPER_DEVICE=cuda \
+    WHISPER_COMPUTE_TYPE=float16 \
+    WHISPER_CPU_THREADS=4 \
+    HF_HOME=/home/whisper/.cache/huggingface \
+    HF_HUB_DISABLE_TELEMETRY=1 \
+    PYTHONUNBUFFERED=1
+
+# The build has no GPU. Bake the same small weights; the process loads them on CUDA at start.
+RUN python -c "from faster_whisper import download_model; download_model('small')"
+
+COPY --chown=whisper:whisper app ./app
+COPY --chown=whisper:whisper whisper-api.conf ./whisper-api.conf
+
+EXPOSE 8080
+CMD ["python", "-m", "uvicorn", "app.asgi:app", "--host", "0.0.0.0", "--port", "8080"]

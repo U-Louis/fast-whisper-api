@@ -1,6 +1,10 @@
 # fast-whisper-api
 
-[Faster Whisper](https://github.com/SYSTRAN/faster-whisper) behind the same HTTP contract as whisper-api.
+[Faster Whisper](https://github.com/SYSTRAN/faster-whisper) wrapped in a [fastapi](https://github.com/fastapi/fastapi) (from openai's [whisper](https://github.com/openai/whisper) but with [CTranslate2](https://github.com/OpenNMT/CTranslate2/))
+
+
+Only the speech-to-text part and with just a few parameters
+
 
 `POST /v1/transcribe` returns `{"text","language"}`. The only request field besides the file is an optional two-letter language. The model stays `small`. The task stays transcribe.
 
